@@ -3,9 +3,34 @@
 # In addition, we recommend to restrict inbound traffic on the host to langfuse-web (port 3000) and minio (port 9090) only.
 # All other components are bound to localhost (127.0.0.1) to only accept connections from the local machine.
 # External connections from other machines will not be able to reach these services directly.
+#
+# Images: built from this fork by .github/workflows/ghcr-image.yml and pulled
+# from GHCR. Pin a build with LANGFUSE_IMAGE_TAG=sha-<short-sha>.
+#
+# Outbound proxy: set the lowercase proxy variables in the shell or in a `.env`
+# file next to this compose file, e.g.
+#   http_proxy=http://proxy.example.com:3128
+#   https_proxy=http://proxy.example.com:3128
+#   no_proxy=.example.com,10.0.0.0/8
+# They are passed to langfuse-web and langfuse-worker in both lowercase and
+# uppercase (Langfuse reads HTTPS_PROXY for LLM and webhook calls). The
+# internal compose services are always added to no_proxy so traffic between
+# containers never goes through the proxy. Set NODE_USE_ENV_PROXY=1 to also
+# route Node's built-in fetch/http through the proxy. If the proxy re-signs
+# TLS, mount its CA into the containers and set NODE_EXTRA_CA_CERTS to it.
+x-proxy-env: &proxy-env
+  http_proxy: ${http_proxy:-}
+  https_proxy: ${https_proxy:-}
+  no_proxy: &no-proxy localhost,127.0.0.1,langfuse-web,langfuse-worker,clickhouse,minio,redis,postgres,${no_proxy:-}
+  HTTP_PROXY: ${http_proxy:-}
+  HTTPS_PROXY: ${https_proxy:-}
+  NO_PROXY: *no-proxy
+  NODE_USE_ENV_PROXY: ${NODE_USE_ENV_PROXY:-}
+  NODE_EXTRA_CA_CERTS: ${NODE_EXTRA_CA_CERTS:-}
+
 services:
   langfuse-worker:
-    image: docker.langfuse.com/langfuse/langfuse-worker:4
+    image: ghcr.io/longduongbao29/langfuse-worker:${LANGFUSE_IMAGE_TAG:-latest}
     restart: always
     depends_on: &langfuse-depends-on
       postgres:
@@ -19,6 +44,7 @@ services:
     ports:
       - 127.0.0.1:3030:3030
     environment: &langfuse-worker-env
+      <<: *proxy-env
       NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
       DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/postgres} # CHANGEME
       SALT: ${SALT:-mysalt} # CHANGEME
@@ -96,7 +122,7 @@ services:
       LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_REGION: ${LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_REGION:-}
 
   langfuse-web:
-    image: docker.langfuse.com/langfuse/langfuse:4
+    image: ghcr.io/longduongbao29/langfuse:${LANGFUSE_IMAGE_TAG:-latest}
     restart: always
     depends_on: *langfuse-depends-on
     ports:
@@ -104,6 +130,9 @@ services:
     environment:
       <<: *langfuse-worker-env
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-mysecret} # CHANGEME
+      # Proxy for SSO provider calls (NextAuth); defaults to the lowercase vars.
+      AUTH_HTTP_PROXY: ${AUTH_HTTP_PROXY:-${http_proxy:-}}
+      AUTH_HTTPS_PROXY: ${AUTH_HTTPS_PROXY:-${https_proxy:-}}
       LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: ${LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT:-http://localhost:9090}
       LANGFUSE_INIT_ORG_ID: ${LANGFUSE_INIT_ORG_ID:-}
       LANGFUSE_INIT_ORG_NAME: ${LANGFUSE_INIT_ORG_NAME:-}

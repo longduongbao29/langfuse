@@ -116,7 +116,11 @@ const nextConfig = {
     },
   },
   logging: {
-    browserToTerminal: true,
+    // Off: in dev, Next patches `console.*` in the browser and synchronously
+    // deep-clones every logged argument (no depth limit) on the main thread
+    // before forwarding it to the terminal, which freezes the UI when large
+    // objects are logged. Read browser logs in the browser devtools instead.
+    browserToTerminal: false,
   },
   experimental: {
     // Use the Rust port instead of the Babel transform
