@@ -14,6 +14,7 @@ import {
   isTrpcZodValidationError,
   reportNonTrpcError,
   reportTrpcErrorWithoutToast,
+  shouldLogTrpcOperation,
 } from "@/src/utils/api";
 
 const { captureExceptionMock, addBreadcrumbMock, trpcErrorToastMock } =
@@ -643,5 +644,43 @@ describe("reportNonTrpcError", () => {
     const [, options] = captureExceptionMock.mock.calls[0]!;
     expect(options.tags.area).toBe("organizations");
     expect(options.extra).toEqual({ context: "delete-organization" });
+  });
+});
+
+describe("shouldLogTrpcOperation", () => {
+  // Next's dev `browserToTerminal` forwarding deep-clones every console
+  // argument synchronously; logging full query results (a whole trace with
+  // its observations and I/O) froze the dev UI after each response.
+  it("does not log successful results in development", () => {
+    expect(
+      shouldLogTrpcOperation(
+        { direction: "down", result: { result: { data: { big: [] } } } },
+        true,
+      ),
+    ).toBe(false);
+  });
+
+  it("does not log outgoing requests in development", () => {
+    expect(shouldLogTrpcOperation({ direction: "up" }, true)).toBe(false);
+  });
+
+  it("logs failed operations in development", () => {
+    const error = trpcServerError({
+      code: "INTERNAL_SERVER_ERROR",
+      httpStatus: 500,
+      path: "traces.byId",
+    });
+    expect(
+      shouldLogTrpcOperation({ direction: "down", result: error }, true),
+    ).toBe(true);
+  });
+
+  it("never logs outside development", () => {
+    expect(
+      shouldLogTrpcOperation(
+        { direction: "down", result: new Error("boom") },
+        false,
+      ),
+    ).toBe(false);
   });
 });

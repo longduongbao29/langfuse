@@ -559,6 +559,26 @@ const shouldSilenceError = (
   return false;
 };
 
+/**
+ * Gate for the tRPC `loggerLink`: development only (production logs would be
+ * captured by Sentry in an unreadable format; 5xx errors are reported via
+ * `handleTrpcError`), and only failed operations.
+ *
+ * Successful results are deliberately not logged: the logger passes the full
+ * response (e.g. a whole trace with its observations and I/O) to
+ * `console.log`, and Next's dev `logging.browserToTerminal` forwarding
+ * deep-clones every console argument synchronously on the main thread before
+ * sending it to the terminal. With large payloads that froze the dev UI after
+ * every response and kept each result reachable from the console. Use the
+ * browser Network tab to inspect successful responses.
+ * Exported for tests.
+ */
+export const shouldLogTrpcOperation = (
+  opts: { direction: "up" } | { direction: "down"; result: unknown },
+  isDevelopment = process.env.NODE_ENV === "development",
+): boolean =>
+  isDevelopment && opts.direction === "down" && opts.result instanceof Error;
+
 /** APIError is returned by api.*.*.useQuery */
 export type APIError = TRPCClientErrorLike<AppRouter>;
 
@@ -574,12 +594,7 @@ export const api = createTRPCNext<AppRouter>({
       links: [
         buildIdLink(),
         requestTooLargeDiagnosticsLink(),
-        loggerLink({
-          // Only enable in development - production logs would be captured by Sentry
-          // in an unreadable format. We handle 5xx errors via reportError in
-          // handleTrpcError and use DataDog for additional server-side logging.
-          enabled: () => process.env.NODE_ENV === "development",
-        }),
+        loggerLink({ enabled: (opts) => shouldLogTrpcOperation(opts) }),
         splitLink({
           condition(op) {
             // check for context property `skipBatch`
