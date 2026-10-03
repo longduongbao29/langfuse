@@ -5,6 +5,7 @@ import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/Suppo
 import Page from "@/src/components/layouts/page";
 import { AnnotationQueuesOnboarding } from "@/src/components/onboarding/AnnotationQueuesOnboarding";
 import { api } from "@/src/utils/api";
+import { refetchUntilTruthy } from "@/src/utils/refetchUntilTruthy";
 import { CreateOrEditAnnotationQueueButton } from "@/src/features/annotation-queues/components/CreateOrEditAnnotationQueueButton";
 
 export default function AnnotationQueues() {
@@ -25,7 +26,7 @@ export default function AnnotationQueues() {
           skipBatch: true,
         },
       },
-      refetchInterval: 10_000,
+      refetchInterval: refetchUntilTruthy(10_000),
     },
   );
 

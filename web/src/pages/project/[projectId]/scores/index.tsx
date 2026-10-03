@@ -2,6 +2,7 @@ import { useRouter } from "next/router";
 import ScoresTable from "@/src/components/table/use-cases/scores";
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
+import { refetchUntilTruthy } from "@/src/utils/refetchUntilTruthy";
 import { ScoresOnboarding } from "@/src/components/onboarding/ScoresOnboarding";
 import {
   getScoresTabs,
@@ -22,7 +23,7 @@ export default function ScoresPage() {
           skipBatch: true,
         },
       },
-      refetchInterval: 10_000,
+      refetchInterval: refetchUntilTruthy(10_000),
     },
   );
 

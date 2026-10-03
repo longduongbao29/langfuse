@@ -4,6 +4,7 @@ import SessionsTable from "@/src/components/table/use-cases/sessions";
 import Page from "@/src/components/layouts/page";
 import { SessionsOnboarding } from "@/src/components/onboarding/SessionsOnboarding";
 import { api } from "@/src/utils/api";
+import { refetchUntilTruthy } from "@/src/utils/refetchUntilTruthy";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 
 export default function Sessions() {
@@ -20,7 +21,7 @@ export default function Sessions() {
           skipBatch: true,
         },
       },
-      refetchInterval: 10_000,
+      refetchInterval: refetchUntilTruthy(10_000),
     },
   );
 
@@ -34,7 +35,7 @@ export default function Sessions() {
             skipBatch: true,
           },
         },
-        refetchInterval: 10_000,
+        refetchInterval: refetchUntilTruthy(10_000),
       },
     );
 

@@ -19,6 +19,7 @@ import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { api } from "@/src/utils/api";
+import { refetchUntilTruthy } from "@/src/utils/refetchUntilTruthy";
 import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { type RouterOutput } from "@/src/utils/types";
 import { type FilterState, usersTableCols } from "@langfuse/shared";
@@ -60,7 +61,7 @@ export default function UsersPage() {
           skipBatch: true,
         },
       },
-      refetchInterval: 10_000,
+      refetchInterval: refetchUntilTruthy(10_000),
     },
   );
 
@@ -74,7 +75,7 @@ export default function UsersPage() {
             skipBatch: true,
           },
         },
-        refetchInterval: 10_000,
+        refetchInterval: refetchUntilTruthy(10_000),
       },
     );
 

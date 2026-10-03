@@ -677,12 +677,7 @@ export const api = createTRPCNext<AppRouter>({
  */
 export const directApi = createTRPCProxyClient<AppRouter>({
   links: [
-    loggerLink({
-      // Only enable in development - production logs would be captured by Sentry
-      // in an unreadable format. We handle 5xx errors via reportError in
-      // handleTrpcError and use DataDog for additional server-side logging.
-      enabled: () => process.env.NODE_ENV === "development",
-    }),
+    loggerLink({ enabled: (opts) => shouldLogTrpcOperation(opts) }),
     httpBatchLink({
       url: `${getBaseUrl()}/api/trpc`,
       transformer: superjson,
