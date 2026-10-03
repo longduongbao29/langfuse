@@ -1,10 +1,50 @@
+# Builds langfuse-web and langfuse-worker from this checkout instead of pulling
+# the prebuilt GHCR images used by docker-compose.yml:
+#   docker compose -f docker-compose.build.yml up -d --build
+#
+# Proxy: set the lowercase proxy variables in the shell or in a `.env` file
+# next to this compose file, e.g.
+#   http_proxy=http://proxy.example.com:3128
+#   https_proxy=http://proxy.example.com:3128
+#   no_proxy=.example.com,10.0.0.0/8
+# They are used twice:
+# - at build time, as Docker's predefined proxy build args (apk, pnpm, go
+#   downloads inside the Dockerfiles). They are not stored in the image. If the
+#   proxy runs on this host (127.0.0.1), build with DOCKER_BUILD_NETWORK=host so
+#   the build containers can reach it.
+# - at runtime, passed to langfuse-web and langfuse-worker in lowercase and
+#   uppercase (Langfuse reads HTTPS_PROXY for LLM and webhook calls). The
+#   internal compose services are always added to no_proxy so traffic between
+#   containers never goes through the proxy. Set NODE_USE_ENV_PROXY=1 to also
+#   route Node's built-in fetch/http through the proxy. If the proxy re-signs
+#   TLS, mount its CA into the containers and set NODE_EXTRA_CA_CERTS to it.
+x-proxy-build-args: &proxy-build-args
+  http_proxy: ${http_proxy:-}
+  https_proxy: ${https_proxy:-}
+  no_proxy: ${no_proxy:-}
+  HTTP_PROXY: ${http_proxy:-}
+  HTTPS_PROXY: ${https_proxy:-}
+  NO_PROXY: ${no_proxy:-}
+
+x-proxy-env: &proxy-env
+  http_proxy: ${http_proxy:-}
+  https_proxy: ${https_proxy:-}
+  no_proxy: &no-proxy localhost,127.0.0.1,langfuse-web,langfuse-worker,clickhouse,minio,redis,postgres,${no_proxy:-}
+  HTTP_PROXY: ${http_proxy:-}
+  HTTPS_PROXY: ${https_proxy:-}
+  NO_PROXY: *no-proxy
+  NODE_USE_ENV_PROXY: ${NODE_USE_ENV_PROXY:-}
+  NODE_EXTRA_CA_CERTS: ${NODE_EXTRA_CA_CERTS:-}
+
 services:
   langfuse-web:
     build:
       dockerfile: ./web/Dockerfile
       context: .
+      network: ${DOCKER_BUILD_NETWORK:-default}
       args:
-        - NEXT_PUBLIC_LANGFUSE_CLOUD_REGION=${NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}
+        <<: *proxy-build-args
+        NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: ${NEXT_PUBLIC_LANGFUSE_CLOUD_REGION:-}
     depends_on: &langfuse-depends-on
       postgres:
         condition: service_healthy
@@ -17,10 +57,14 @@ services:
     ports:
       - "3000:3000"
     environment: &langfuse-web-env
+      <<: *proxy-env
       # Docker injects HOSTNAME=<container-id>; override it so app servers bind on all interfaces.
       HOSTNAME: 0.0.0.0
       DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/postgres}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-mysecret}
+      # Proxy for SSO provider calls (NextAuth); defaults to the lowercase vars.
+      AUTH_HTTP_PROXY: ${AUTH_HTTP_PROXY:-${http_proxy:-}}
+      AUTH_HTTPS_PROXY: ${AUTH_HTTPS_PROXY:-${https_proxy:-}}
       SALT: ${SALT:-mysalt}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-0000000000000000000000000000000000000000000000000000000000000000} # generate via `openssl rand -hex 32`
       NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
@@ -82,8 +126,10 @@ services:
     build:
       dockerfile: ./worker/Dockerfile
       context: .
+      network: ${DOCKER_BUILD_NETWORK:-default}
       args:
-        - NEXT_PUBLIC_LANGFUSE_CLOUD_REGION=${NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}
+        <<: *proxy-build-args
+        NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: ${NEXT_PUBLIC_LANGFUSE_CLOUD_REGION:-}
     depends_on: *langfuse-depends-on
     ports:
       - "3030:3030"
